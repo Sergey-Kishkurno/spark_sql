@@ -4,6 +4,7 @@ import psycopg2
 
 from hdfs import InsecureClient
 from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
 
 
 pg_creds = {
@@ -79,7 +80,7 @@ def bronze_upload():
 def main():
 
     # LOAD TO BRONZE ZONE
-    bronze_upload()
+    # bronze_upload()
 
     # PROCESS AND SAVE IN SILVER ZONE
     # request_1()
@@ -150,7 +151,7 @@ def request_1():
 
     res_df = res_df_03.groupBy('name')\
         .count()\
-        .sort(ascending=False)
+        .sort('count', ascending=False)
 
     res_df.show()
 
@@ -219,14 +220,17 @@ def request_2():
     # limit 10
     # ;
 
-    res_df_03 = res_df_02.select('first_name', 'last_name')
+    res_df_03 = res_df_02.select('first_name', 'last_name', 'rental_duration')
     res_df_03.show()
     res_df_03.printSchema()
 
-    res_df = res_df_03.groupBy('first_name', 'last_name')\
-        .sum('rental_duration')\
-        .sort(ascending=False)\
-        .limit(10)
+    res_df_04 = res_df_03.withColumn('rental_duration', res_df_03.rental_duration.cast('int'))
+    res_df_04.show()
+    res_df_04.printSchema()
+
+    res_df_05 = res_df_04.groupBy('first_name', 'last_name').sum('rental_duration')
+
+    res_df = res_df_05.sort(F.desc('rental_duration')).limit(10)
 
     res_df.show()
 
