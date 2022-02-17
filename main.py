@@ -84,13 +84,12 @@ def main():
 
     # PROCESS AND SAVE IN SILVER ZONE
     # request_1()
-    request_2()
+    # request_2()
     # request_3()
-    # request_4()
+    request_4()
     # request_5()
     # request_6()
     # request_7()
-
 
 
 ##### LOAD TO SILVER ZONE #########################################################################
@@ -209,17 +208,6 @@ def request_2():
     res_df_02.show()
     res_df_02.printSchema()
 
-
-    # -- 2. вывести 10 актеров, чьи фильмы большего всего арендовали, отсортировать по убыванию.
-    # select a.first_name, a.last_name, sum(f.rental_duration) sum_rental_duration
-    # from actor a
-    #          left join film_actor fa on a.actor_id = fa.actor_id
-    #          left join film f on fa.film_id = f.film_id
-    # group by a.first_name, a.last_name
-    # order by sum_rental_duration desc
-    # limit 10
-    # ;
-
     res_df_03 = res_df_02.select('first_name', 'last_name', 'rental_duration')
     res_df_03.show()
     res_df_03.printSchema()
@@ -230,9 +218,134 @@ def request_2():
 
     res_df_05 = res_df_04.groupBy('first_name', 'last_name').sum('rental_duration')
 
-    res_df = res_df_05.sort(F.desc('rental_duration')).limit(10)
+    res_df = res_df_05.sort(F.desc('sum(rental_duration)')).limit(10)
 
     res_df.show()
+
+
+
+# -- №3
+# -- Вывести категорию фильмов, на которую потратили больше всего денег.
+# select c.name, res.sum from category c
+# join
+#     (select fc.category_id, sum(amount)
+#     from payment p
+#     join rental r on p.rental_id = r.rental_id                    +
+#     join inventory i on r.inventory_id =i.inventory_id            +
+#     join film_category fc on fc.film_id = i.film_id               +
+#     group by fc.category_id
+#     order by sum desc
+#     limit 1
+#     ) as res on c.category_id = res.category_id
+# ;
+
+def request_3():
+    category_df = spark.read.load(f"/bronze/{current_date}/category.csv"
+                                  , header="true"
+                                  , inferSchema="true"
+                                  , format="csv")
+    category_df.show()
+    category_df.printSchema()
+
+    film_category_df = spark.read.load(f"/bronze/{current_date}/film_category.csv"
+                                       , header="true"
+                                       , inferSchema="true"
+                                       , format="csv")
+    film_category_df.show()
+    film_category_df.printSchema()
+
+    payment_df = spark.read.load(f"/bronze/{current_date}/payment.csv"
+                                 , header="true"
+                                 , inferSchema="true"
+                                 , format="csv")
+    payment_df.show()
+    payment_df.printSchema()
+
+    rental_df = spark.read.load(f"/bronze/{current_date}/rental.csv"
+                                , header="true"
+                                , inferSchema="true"
+                                , format="csv")
+    rental_df.show()
+    rental_df.printSchema()
+
+    inventory_df = spark.read.load(f"/bronze/{current_date}/inventory.csv"
+                                   , header="true"
+                                   , inferSchema="true"
+                                   , format="csv")
+    inventory_df.show()
+    inventory_df.printSchema()
+
+    res_df_01 = payment_df.join(
+        rental_df,
+        payment_df['rental_id'] == rental_df['rental_id'],
+        'left'
+    )
+    res_df_01.show()
+    res_df_01.printSchema()
+
+    res_df_02 = res_df_01.join(
+        inventory_df,
+        res_df_01['inventory_id'] == inventory_df['inventory_id'],
+        'left'
+    )
+    res_df_02.show()
+    res_df_02.printSchema()
+
+    res_df_03 = res_df_02.join(
+        film_category_df,
+        res_df_02['film_id'] == film_category_df['film_id'],
+        'left'
+    )
+    res_df_03.show()
+    res_df_03.printSchema()
+
+    res_df_04 = res_df_03.select('category_id', 'amount')
+
+    res_df_05 = res_df_04.groupby('category_id').sum('amount')
+    res_df_05.show()
+    res_df_05.printSchema()
+
+    res_df = res_df_05.sort(F.desc('sum(amount)')).limit(1)
+
+    res_df.show()
+
+
+# -- №4
+# -- Вывести названия фильмов, которых нет в inventory.
+# -- Написать запрос без использования оператора IN.
+# select title from film f
+# left join inventory i on f.film_id = i.film_id
+# where i.film_id is null
+# ;
+
+def request_4():
+    film_df = spark.read.load(f"/bronze/{current_date}/film.csv"
+                              , header="true"
+                              , inferSchema="true"
+                              , format="csv")
+    film_df.show()
+    film_df.printSchema()
+
+    inventory_df = spark.read.load(f"/bronze/{current_date}/inventory.csv"
+                                   , header="true"
+                                   , inferSchema="true"
+                                   , format="csv")
+    inventory_df.show()
+    inventory_df.printSchema()
+
+    res_df_01 = film_df.join(
+        inventory_df,
+        film_df['film_id'] == inventory_df['film_id'],
+        'left'
+    ).select('title', inventory_df['film_id'])
+    res_df_01.show()
+    res_df_01.printSchema()
+
+    res_df = res_df_01.filter(res_df_01.film_id.isNnull())
+
+    res_df.show()
+
+
 
 
 if __name__ == '__main__':
